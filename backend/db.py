@@ -1,17 +1,19 @@
 """Supabase auth + todos data access layer."""
-from datetime import timedelta
-import streamlit as st
+import os
+from datetime import timedelta, datetime, timezone
 from supabase import create_client, Client
-
+from dotenv import load_dotenv
 from time_utils import now_local, parse_due_date
 
+# Load local system environment variables
+load_dotenv()
 
-@st.cache_resource
 def get_supabase_client() -> Client:
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["anon_key"]
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+    if not url or not key:
+        raise ValueError("Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variables.")
     return create_client(url, key)
-
 
 # ---------- Auth ----------
 
@@ -74,15 +76,11 @@ def _fetch_all(user_id: str) -> list[dict]:
         .execute()
     )
     todos = res.data or []
-    # Sort so tasks with a due date come first (earliest first), undated tasks last.
     todos.sort(key=lambda t: (t["due_at"] is None, t["due_at"] or ""))
     return todos
 
 
 def list_todos(user_id: str, filter: str = "open") -> list[dict]:
-    """
-    filter: "all" | "open" | "done" | "today" | "overdue" | "upcoming" (next 7 days)
-    """
     todos = _fetch_all(user_id)
     if filter == "all":
         return todos
@@ -118,11 +116,6 @@ def list_todos(user_id: str, filter: str = "open") -> list[dict]:
 
 
 def find_matching_todos(user_id: str, text_snippet: str, status: str = "open") -> list[dict]:
-    """
-    Case-insensitive substring match against task text. Returns ALL matches (not just the first),
-    so the caller can tell the difference between "exactly one task matches" and "several do".
-    status: "open" (default, not-done tasks only), "done" (completed tasks only), or "all".
-    """
     todos = _fetch_all(user_id)
     if status == "open":
         todos = [t for t in todos if not t["is_done"]]
@@ -133,13 +126,11 @@ def find_matching_todos(user_id: str, text_snippet: str, status: str = "open") -
 
 
 def find_todo_by_text(user_id: str, text_snippet: str) -> dict | None:
-    """Back-compat single-result helper: returns the first match, or None."""
     matches = find_matching_todos(user_id, text_snippet)
     return matches[0] if matches else None
 
 
 def complete_todo(todo_id: str) -> dict:
-    from datetime import datetime, timezone
     sb = get_supabase_client()
     res = (
         sb.table("todos")
@@ -174,7 +165,6 @@ def reschedule_todo(todo_id: str, due_at: str | None) -> dict:
 
 
 def reclassify_todo(todo_id: str, category: str | None = None, priority: str | None = None) -> dict:
-    """Update a task's category and/or priority — e.g. to correct a wrong auto-classification."""
     sb = get_supabase_client()
     updates = {}
     if category in VALID_CATEGORIES:
