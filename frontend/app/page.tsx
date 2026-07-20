@@ -23,7 +23,7 @@ export default function ChatDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   
   const USER_ID = "michael_sidabutar"; 
-  const API_BASE = "http://localhost:8000"; // Point this to your backend server URL
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
   const fetchTasks = async (currentFilter: string) => {
     try {
