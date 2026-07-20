@@ -7,7 +7,7 @@ JINA_EMBEDDINGS_URL = "https://api.jina.ai/v1/embeddings"
 
 def get_embedding(text: str) -> list[float] | None:
     """Return a single embedding vector for `text`, or None if the call fails."""
-    api_key = st.secrets["jina"]["api_key"]
+    api_key = os.getenv("JINA_KEY")
     model = st.secrets["jina"].get("embedding_model", "jina-embeddings-v2-base-en")
 
     headers = {
